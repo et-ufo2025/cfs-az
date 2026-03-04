@@ -1,129 +1,127 @@
-name: Build APK
+name: Build Python Android APK
 
+# 触发条件：推送到 master 分支 或 手动触发
 on:
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        required: false
-        type: string
   push:
     branches:
       - master
+      - main
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag (Optional, for uploading to Release)'
+        required: false
+        type: string
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-      with:
-        submodules: 'recursive'
-        fetch-depth: '0'
+      # 1. 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3.2.0
-      with:
-        log-accepted-android-sdk-licenses: false
-        cmdline-tools-version: '13114758'
-        packages: 'platforms;android-36.1 build-tools;36.1.0 platform-tools'
+      # 2. 设置 Python 环境 (核心差异点)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9' # Buildozer 推荐 3.8-3.9
 
-    - name: Install NDK
-      run: |
-        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-          --channel=0 \
-          --install "ndk;28.2.13676358"
-        echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> $GITHUB_ENV
-        sed -i '10i\
-        \
-            ndkVersion = "28.2.13676358"' ${{ github.workspace }}/V2rayNG/app/build.gradle.kts
+      # 3. 安装系统依赖和配置 Android SDK (替代原来的 setup-android action，使用更通用的脚本)
+      - name: Install System Deps & Setup Android SDK
+        run: |
+          set -e
+          echo "=== 安装系统依赖 ==="
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk python3-pip libffi-dev libssl-dev unzip wget autoconf pkg-config libtool libncurses5
+      
+          echo "=== 设置 Java 环境 ==="
+          export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+          
+          echo "=== 配置 Android SDK 路径 ==="
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          export CMDLINE_TOOLS_ROOT=$ANDROID_HOME/cmdline-tools
+          export CMDLINE_TOOLS_BIN=$CMDLINE_TOOLS_ROOT/latest/bin
+          mkdir -p $CMDLINE_TOOLS_ROOT
+          
+          echo "=== 下载并解压 Command Line Tools ==="
+          cd /tmp
+          # 使用稳定的下载链接
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip
+          mv cmdline-tools $CMDLINE_TOOLS_ROOT/latest
+          
+          echo "=== 接受许可证并安装组件 ==="
+          yes | "$CMDLINE_TOOLS_BIN/sdkmanager" --licenses || true
+          "$CMDLINE_TOOLS_BIN/sdkmanager" "platform-tools" "platforms;android-30" "build-tools;30.0.3" "ndk;25.2.9519653"
+          
+          echo "=== 导出环境变量供后续使用 ==="
+          echo "$CMDLINE_TOOLS_BIN" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
 
-    - name: Restore cached libhevtun
-      id: cache-libhevtun-restore
-      uses: actions/cache/restore@v4
-      with:
-        path: ${{ github.workspace }}/libs
-        key: libhevtun-${{ runner.os }}-${{ env.NDK_HOME }}-${{ hashFiles('.git/modules/hev-socks5-tunnel/HEAD') }}-${{ hashFiles('compile-hevtun.sh') }}
+      # 4. 安装 Python 构建工具 (Buildozer & Cython)
+      - name: Install Buildozer and Dependencies
+        run: |
+          pip3 install --upgrade pip
+          # 安装 buildozer 和特定版本的 cython (通常 0.29.x 最稳定)
+          pip3 install buildozer cython==0.29.33 packaging
 
-    - name: Build libhevtun
-      if: steps.cache-libhevtun-restore.outputs.cache-hit != 'true'
-      run: |
-        bash compile-hevtun.sh
-    
-    - name: Save libhevtun
-      if: steps.cache-libhevtun-restore.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
-      with:
-        path: ${{ github.workspace }}/libs
-        key: libhevtun-${{ runner.os }}-${{ env.NDK_HOME }}-${{ hashFiles('.git/modules/hev-socks5-tunnel/HEAD') }}-${{ hashFiles('compile-hevtun.sh') }}
+      # 5. (可选) 缓存 .buildozer 目录以加速二次构建
+      # 注意：第一次运行仍然很慢，因为要下载 NDK 和编译 python-for-android
+      - name: Cache Buildozer Global Directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec', 'requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
 
-    - name: Copy libhevtun
-      run: |
-        cp -r ${{ github.workspace }}/libs ${{ github.workspace }}/V2rayNG/app
+      # 6. 初始化 Buildozer (如果 spec 文件不存在)
+      - name: Initialize Buildozer Spec
+        run: |
+          if [ ! -f buildozer.spec ]; then
+            echo "buildozer.spec not found, creating default..."
+            buildozer init
+            # 这里可以自动修改 spec 文件，例如设置包名
+            # sed -i 's/title = My Application/title = My Python App/' buildozer.spec
+          else
+            echo "buildozer.spec found."
+            cat buildozer.spec
+          fi
 
-    - name: Fetch AndroidLibXrayLite tag
-      run: |
-        pushd AndroidLibXrayLite
-        CURRENT_TAG=$(git describe --tags --abbrev=0)
-        echo "Current tag in this repo: $CURRENT_TAG"
-        echo "CURRENT_TAG=$CURRENT_TAG" >> $GITHUB_ENV
-        popd
+      # 7. 执行构建 (核心步骤)
+      - name: Build APK with Buildozer
+        run: |
+          # 清理之前的构建缓存 (可选，如果遇到奇怪错误可开启)
+          # buildozer android clean
+          
+          # 开始构建 debug 版本
+          # 这一步会下载 python-for-android 源码并编译，耗时较长 (20-40分钟)
+          buildozer android debug
+        
+      # 8. 上传 APK 产物
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        if: always() # 即使失败也尝试上传已生成的文件
+        with:
+          name: python-app-debug-apk
+          path: bin/*.apk
+          retention-days: 5
 
-    - name: Download libv2ray
-      uses: robinraju/release-downloader@v1.12
-      with:
-        repository: '2dust/AndroidLibXrayLite'
-        tag: ${{ env.CURRENT_TAG }}
-        fileName: 'libv2ray.aar'
-        out-file-path: V2rayNG/app/libs/
-
-    - name: Setup Java
-      uses: actions/setup-java@v5
-      with:
-        distribution: 'temurin'
-        java-version: '21'
-
-    - name: Decode Keystore
-      uses: timheuer/base64-to-file@v1.2.4
-      id: android_keystore
-      with:
-        fileName: "android_keystore.jks"
-        encodedString: ${{ secrets.APP_KEYSTORE_BASE64 }}
-
-    - name: Build APK
-      run: |
-        cd ${{ github.workspace }}/V2rayNG
-        echo "sdk.dir=${ANDROID_HOME}" > local.properties
-        chmod 755 gradlew
-        ./gradlew licenseFdroidReleaseReport
-        ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
-    
-    - name: Upload arm64-v8a APK
-      uses: actions/upload-artifact@v7
-      if: ${{  success() }}
-      with:
-        name: arm64-v8a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*arm64-v8a*.apk
-
-    - name: Upload armeabi-v7a APK
-      uses: actions/upload-artifact@v7
-      if: ${{  success() }}
-      with:
-        name: armeabi-v7a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*armeabi-v7a*.apk
-
-    - name: Upload x86 APK
-      uses: actions/upload-artifact@v7
-      if: ${{  success() }}
-      with:
-        name: x86-apk
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*x86*.apk
-
-    - name: Upload to release
-      uses: svenstaro/upload-release-action@v2
-      if: github.event.inputs.release_tag != ''
-      with:
-        file: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*.apk
-        tag: ${{ github.event.inputs.release_tag }}
-        file_glob: true
-        prerelease: true
+      # 9. (可选) 如果提供了 release_tag，则发布到 GitHub Release
+      - name: Upload to GitHub Release
+        uses: svenstaro/upload-release-action@v2
+        if: github.event.inputs.release_tag != '' && success()
+        with:
+          file: bin/*.apk
+          tag: ${{ github.event.inputs.release_tag }}
+          file_glob: true
+          prerelease: true
+          body: "Auto-built Python APK from commit ${{ github.sha }}"
