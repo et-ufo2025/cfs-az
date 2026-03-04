@@ -1,0 +1,58 @@
+# Filename: .github/workflows/build-android.yml
+name: Build Android APK
+
+# 触发条件：当向 main 分支推送代码时
+on:
+  push:
+    branches: [ "main" ]
+
+# 定义一个名为 build 的工作任务
+jobs:
+  build:
+    # 在最新的 Ubuntu 虚拟机上运行
+    runs-on: ubuntu-latest
+
+    steps:
+      # 第一步：检出你仓库里的所有代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 第二步：设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      # 第三步：安装 Linux 系统依赖
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y openjdk-8-jdk python3-pip
+          echo "JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >>  $ GITHUB_ENV
+          echo "/usr/lib/jvm/java-8-openjdk-amd64/bin" >>  $ GITHUB_PATH
+
+      # 第四步：安装 Python 依赖
+      - name: Install Python dependencies
+        run: |
+          pip3 install --upgrade pip
+          pip3 install buildozer cython
+
+      # 第五步：初始化 Buildozer (如果 spec 文件不存在)
+      - name: Initialize Buildozer
+        run: |
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+
+      # 第六步：使用 Buildozer 构建 Android Debug APK
+      # 这是最耗时的一步，可能需要30分钟以上
+      - name: Build APK
+        run: |
+          buildozer android debug
+
+      # 第七步：上传生成的 APK 文件作为构建产物
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CloudFlare-Scanner-APK
+          path: bin/CloudFlareScanner-*.*.debug.apk # 匹配生成的APK文件
