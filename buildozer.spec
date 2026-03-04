@@ -1,72 +1,44 @@
 [app]
-
-# (str) 应用名称
-title = CloudFlareScanner
-
-# (str) 包名（不要有大写）
+# 应用基本信息
+title = CloudFlare Scanner
 package.name = cfs
-
-# (str) 包域名
 package.domain = org.example
 
-# (str) 源代码目录
+# 源代码目录与版本
 source.dir = .
-
-# (list) 包含的文件类型
 source.include_exts = py,png,jpg,kv,atlas
+version = 0.1
+version.regex = __version__ = ['"](.*)['"]
+version.filename = %(source.dir)s/main.py
 
-# (str) 版本号
-version = 2.2
+# 依赖库 (关键！必须包含 aiohttp)
+requirements = python3,kivy==2.2.0,aiohttp==3.8.4
 
-# (list) 依赖
-requirements = python3==3.10,kivy,aiohttp,openssl
-
-# (str) 应用方向
+# 屏幕方向
 orientation = portrait
-
-# (bool) 是否全屏
 fullscreen = 0
 
-# (list) Android 权限
-android.permissions = INTERNET,ACCESS_NETWORK_STATE
+[build]
+# 可选的构建参数
+# android.ndk = 25b        # 可以在 [android] 段指定
 
-# ------------------------------
-# 关键锁版本区域（解决你所有报错）
-# ------------------------------
+[android]
+# Android 最低和目标 API
+api = 33
+minapi = 21
+ndk = 25b
 
-# Android API 版本（不要改）
-android.api = 33
+# 权限
+android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE
 
-# 最低支持版本
-android.minapi = 21
-
-# 锁定 NDK 版本
-android.ndk = 25c
-
-# 锁定 Build Tools（防止 37-rc2）
-android.build_tools = 33.0.2
-
-# 指定 SDK 版本
-android.sdk = 33
-
-# 架构（支持 64 位）
+# 架构 (可选，默认是 armeabi-v7a, arm64-v8a)
 android.arch = arm64-v8a
 
-# ------------------------------
+# 自动接受 SDK 许可证
+android.accept_sdk_license = True
 
-# (bool) 使用 AndroidX
-android.enable_androidx = True
+# 如果需要 OpenSSL (aiohttp 间接依赖)，但通常会自动处理
+# android.add_src =
 
-# (bool) 允许备份
-android.allow_backup = False
-
-# (str) 图标（如果没有就注释掉）
-# icon.filename = icon.png
-
-# (str) 启动画面（可选）
-# presplash.filename = presplash.png
-
-# 日志等级
+# 日志级别 (调试时可设为 2)
 log_level = 2
-
-warn_on_root = 1
