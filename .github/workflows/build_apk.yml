@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK (Stable Final)
 
 on:
   push:
@@ -8,22 +8,28 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Build APK
+      - name: Pull buildozer image
+        run: docker pull kivy/buildozer
+
+      - name: Build inside container
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/home/user/hostcwd \
             -w /home/user/hostcwd \
             kivy/buildozer \
-            android debug
+            bash -c "
+              yes | sdkmanager --licenses > /dev/null 2>&1 || true
+              sdkmanager 'build-tools;33.0.2'
+              rm -rf ~/.buildozer/android/platform/android-sdk/build-tools/37*
+              buildozer android debug
+            "
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: APK
           path: bin/*.apk
