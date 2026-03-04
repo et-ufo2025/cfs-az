@@ -1,4 +1,4 @@
-name: Build APK (Stable Final)
+name: Build APK (Final Fixed)
 
 on:
   push:
@@ -13,19 +13,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Pull buildozer image
-        run: docker pull kivy/buildozer
-
       - name: Build inside container
         run: |
           docker run --rm \
+            --entrypoint /bin/bash \
             -v ${{ github.workspace }}:/home/user/hostcwd \
             -w /home/user/hostcwd \
             kivy/buildozer \
-            bash -c "
+            -c "
               yes | sdkmanager --licenses > /dev/null 2>&1 || true
               sdkmanager 'build-tools;33.0.2'
-              rm -rf ~/.buildozer/android/platform/android-sdk/build-tools/37*
+              rm -rf /home/user/.buildozer/android/platform/android-sdk/build-tools/37*
               buildozer android debug
             "
 
@@ -33,3 +31,4 @@ jobs:
         with:
           name: APK
           path: bin/*.apk
+          
