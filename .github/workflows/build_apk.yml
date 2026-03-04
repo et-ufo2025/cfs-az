@@ -1,0 +1,55 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_DIR: ${{ github.workspace }}/build
+      APK_DIR: ${{ github.workspace }}/apk
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Buildozer
+      run: |
+        pip install buildozer
+
+    - name: Install Android SDK
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y android-sdk
+        echo "sdk.dir=${{ github.workspace }}/android-sdk" > local.properties
+        echo "sdk.dir=${{ github.workspace }}/android-sdk" > ~/.android/buildozer.properties
+
+    - name: Install NDK
+      run: |
+        wget https://dl.google.com/android/repository/android-ndk-r23b-linux.zip
+        unzip android-ndk-r23b-linux.zip
+        mv android-ndk-r23b ndk
+        echo "ndk.dir=${{ github.workspace }}/ndk" >> ~/.android/buildozer.properties
+
+    - name: Build APK
+      run: |
+        mkdir -p $BUILD_DIR
+        cp main.py $BUILD_DIR/
+        cp buildozer.spec $BUILD_DIR/
+        cp -r . $BUILD_DIR/
+        cd $BUILD_DIR
+        buildozer -v android debug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: cloudflarescan.apk
+        path: $BUILD_DIR/bin/cloudflarescan-0.1-debug.apk
