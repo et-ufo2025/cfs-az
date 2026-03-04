@@ -1,40 +1,34 @@
 [app]
-# 应用基本信息
-title = CloudFlare Scanner
-package.name = cfs
-package.domain = org.example
 
-# 源代码目录与扩展
-source.dir = .
+# 应用名称
+title = CF Scanner
+# 包名
+package.name = cfscan
+# 域名
+package.domain = org.scanner
+
+# 包含的源文件扩展名
 source.include_exts = py,png,jpg,kv,atlas
 
-# 使用静态版本号（删除 version.regex 和 version.filename）
-version = 0.1
+# 你的应用主入口文件
+source.main = main.py
 
-# 依赖库（aiohttp 及其必需依赖）
-requirements = python3,kivy==2.2.0,aiohttp==3.8.4
+# 版本号
+version = 2.2
 
-# 屏幕方向
-orientation = portrait
-fullscreen = 0
+# 核心：必须明确声明依赖！
+# aiohttp 是重点，charset-normalizer 经常作为 aiohttp 的隐性依赖在安卓上报错
+requirements = python3,kivy,aiohttp,charset-normalizer
 
-[build]
-# 可选的构建参数
+# 核心：网络权限！没有这个无法测速
+android.permissions = INTERNET, ACCESS_NETWORK_STATE
 
-[android]
-# Android 最低和目标 API
-api = 33
-minapi = 21
-ndk = 25b
+# 支持的架构 (默认通常是 armeabi-v7a，建议加上 arm64-v8a 适应新手机)
+android.archs = arm64-v8a, armeabi-v7a
 
-# 权限
-android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE
+# 允许应用在后台运行（可选，针对耗时扫描任务）
+android.allow_backup = True
 
-# 架构 (可选，默认 armeabi-v7a, arm64-v8a)
-android.arch = arm64-v8a
-
-# 自动接受 SDK 许可证
-android.accept_sdk_license = True
-
-# 日志级别
+[buildozer]
+# 日志级别 (2=debug，遇到报错时方便在 GitHub Actions 查看原因)
 log_level = 2
