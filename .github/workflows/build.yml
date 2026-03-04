@@ -13,10 +13,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4      # 升级到 v4
 
       - name: Set up Python 3.9
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5  # 升级到 v5
         with:
           python-version: '3.9'
 
@@ -29,6 +29,12 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo5 \
             cmake libffi-dev libssl-dev
 
+      - name: Cache Buildozer directory
+        uses: actions/cache@v4          # 使用缓存加速重复构建
+        with:
+          path: ~/.buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+
       - name: Install Buildozer and Cython
         run: |
           pip install --upgrade pip
@@ -36,12 +42,11 @@ jobs:
 
       - name: Build with Buildozer
         run: |
-          # 避免交互式询问
           export BUILDOZER_NO_INTERACTION=1
           buildozer android debug
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4   # 升级到 v4
         with:
           name: app-debug
           path: bin/*.apk
