@@ -5,18 +5,18 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:        # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # 明确指定 22.04，避免 24.04 兼容性问题
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4      # 升级到 v4
+        uses: actions/checkout@v4
 
       - name: Set up Python 3.9
-        uses: actions/setup-python@v5  # 升级到 v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
@@ -26,11 +26,11 @@ jobs:
           sudo apt install -y \
             git zip unzip openjdk-17-jdk python3-pip \
             autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev libtinfo5 \
-            cmake libffi-dev libssl-dev
+            cmake libffi-dev libssl-dev \
+            libncurses-dev
 
       - name: Cache Buildozer directory
-        uses: actions/cache@v4          # 使用缓存加速重复构建
+        uses: actions/cache@v4
         with:
           path: ~/.buildozer
           key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
@@ -46,7 +46,7 @@ jobs:
           buildozer android debug
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4   # 升级到 v4
+        uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: bin/*.apk
