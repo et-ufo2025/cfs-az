@@ -1,5 +1,9 @@
 [app]
 
+android.api = 33
+android.minapi = 21
+android.ndk = 25c
+
 # (str) Title of your application
 title = My Application
 
@@ -450,3 +454,4 @@ warn_on_root = 1
 #    Then, invoke the command line with the "demo" profile:
 #
 #buildozer --profile demo android debug
+
