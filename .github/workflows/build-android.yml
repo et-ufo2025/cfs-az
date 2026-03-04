@@ -20,17 +20,16 @@ jobs:
         with:
           python-version: '3.9'
 
-      # 步骤 3: 安装 Linux 系统依赖，并预配置 Android SDK
-      - name: Install system dependencies and configure Android SDK
+      # 步骤 3: 安装 Linux 系统依赖，并配置 Android SDK/NDK
+      - name: Install system dependencies and setup Android SDK/NDK
         run: |
           sudo apt update
           sudo apt install -y openjdk-8-jdk python3-pip
-          
-          # 设置 JAVA_HOME 和 ANDROID_HOME 环境变量
+
+          # 设置环境变量
           echo "JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> $GITHUB_ENV
           echo "ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
-          echo "/usr/lib/jvm/java-8-openjdk-amd64/bin" >> $GITHUB_PATH
-          echo "$HOME/.buildozer/android/platform/android-sdk/tools/bin" >> $GITHUB_PATH
+          echo "$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
           echo "$HOME/.buildozer/android/platform/android-sdk/platform-tools" >> $GITHUB_PATH
           
           # 创建必要的目录
@@ -40,11 +39,19 @@ jobs:
           cd ~
           wget https://dl.google.com/android/repository/commandlinetools-linux-7583922_latest.zip
           unzip commandlinetools-linux-7583922_latest.zip
+          
+          # 注意：新版结构是 cmdline-tools/latest/
           mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest
           mv cmdline-tools/* ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/ 2>/dev/null || true
           
+          # 授予执行权限
+          chmod +x ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/*
+
           # 自动接受所有 Android SDK 许可证
-          yes | $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+          yes | ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+
+          # 安装核心 SDK 组件
+          ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --install "tools" "platform-tools" "platforms;android-30" "build-tools;30.0.3"
 
       # 步骤 4: 安装 Python 依赖
       - name: Install Python dependencies
@@ -60,8 +67,10 @@ jobs:
           fi
 
       # 步骤 6: 使用 Buildozer 构建 Android Debug APK
+      # 强制重建以确保环境干净
       - name: Build APK
         run: |
+          buildozer android clean
           buildozer android debug
 
       # 步骤 7: 上传生成的 APK 文件
