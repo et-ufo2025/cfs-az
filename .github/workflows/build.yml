@@ -2,51 +2,57 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
+  # 允许在 GitHub 网页上手动触发
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04          # 明确指定 22.04，避免 24.04 兼容性问题
+    runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.9
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.11'
 
-      - name: Install system dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            git zip unzip openjdk-17-jdk python3-pip \
-            autoconf libtool pkg-config zlib1g-dev \
-            cmake libffi-dev libssl-dev \
-            libncurses-dev
-
-      - name: Cache Buildozer directory
+      - name: Cache Buildozer global directory
         uses: actions/cache@v4
         with:
-          path: ~/.buildozer
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          path: .buildozer_global
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-global-
 
-      - name: Install Buildozer and Cython
+      - name: Cache Buildozer directory in app
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt update
+          # 安装 Buildozer 和 Android SDK/NDK 必需的系统级依赖
+          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev cython3
+
+      - name: Install Python Dependencies
         run: |
           pip install --upgrade pip
-          pip install buildozer Cython
+          pip install buildozer cython virtualenv
 
-      - name: Build with Buildozer
+      - name: Build Android APK
         run: |
-          export BUILDOZER_NO_INTERACTION=1
-          buildozer android debug
+          # 接受所有 Android SDK 许可并运行构建
+          yes | buildozer -v android debug
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: CF-Scanner-Android-APK
           path: bin/*.apk
