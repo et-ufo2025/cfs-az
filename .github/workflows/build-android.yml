@@ -1,33 +1,82 @@
-# Filename: buildozer.spec
-[app]
+name: Build Android APK
 
-# 应用的基本信息
-title = CF Scanner
-package.name = cfscanner
-package.domain = com.yourdomain
+# 触发条件：推送到 main 或 master 分支
+on:
+  push:
+    branches:
+      - main
+      - master
 
-# 源代码目录
-source.dir = .
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-# 源代码包含的文件
-source.include_exts = py,png,jpg,kv,atlas,csv
+      # 2. 设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
 
-# 版本信息
-version = 0.1
-requirements = python3, kivy==2.1.0, aiohttp==3.8.1, cython==0.29.33
+      # 3. 安装系统依赖和 Android SDK 工具
+      - name: Install Dependencies and Setup Android SDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-8-jdk python3-pip libffi-dev libssl-dev
+      
+          # 设置 Java 环境
+          echo "JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> $GITHUB_ENV
+          export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+          
+          # 设置 Android SDK 路径
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          mkdir -p $ANDROID_HOME
+          
+          # 下载 Android Command Line Tools
+          cd /tmp
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip
+          
+          # 移动到正确目录结构 (cmdline-tools/latest)
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          mv cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          
+          # 添加路径到环境变量
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          
+          # 自动接受许可证
+          yes | sdkmanager --licenses
+          
+          # 安装必要的 SDK 组件
+          sdkmanager "platform-tools" "platforms;android-30" "build-tools;30.0.3"
 
-# 应用权限
-android.permissions = INTERNET, ACCESS_NETWORK_STATE
+      # 4. 安装 Python 构建工具
+      - name: Install Python Build Tools
+        run: |
+          pip3 install --upgrade pip
+          pip3 install buildozer cython==0.29.33
 
-# Android API 设置
-android.api = 30
-android.minapi = 21
-# android.sdk = 30  <-- 这一行已删除，因为它已被弃用
+      # 5. 执行 Buildozer 构建
+      - name: Build APK with Buildozer
+        run: |
+          # 初始化 spec 文件 (如果不存在)
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+          
+          # 开始构建 (debug 模式)
+          # 这一步会下载 NDK 并编译，耗时较长
+          buildozer android debug
 
-# NDK 版本 (必须与 python-for-android 兼容)
-android.ndk = 23b
-
-[buildozer]
-
-# 构建日志级别
-log_level = 2
+      # 6. 上传 APK 产物
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-app-apk
+          path: bin/*.apk
+          retention-days: 5
